@@ -72,8 +72,8 @@ export function ResumeUploader({ onUploadComplete }: ResumeUploaderProps) {
       <CardHeader>
         <CardTitle>Upload Resume</CardTitle>
         <CardDescription>
-          Upload your resume in PDF or DOCX format. We'll extract the text for
-          cover letter generation.
+          Upload your resume in PDF or DOCX format. We&apos;ll extract the text
+          for cover letter generation.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -1,4 +1,5 @@
 // lib/supabase-server.ts (Server-side client)
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -33,6 +34,20 @@ export async function createServerComponentClient() {
           // ignore errors when cookies are not mutable in this context
         }
       },
+    },
+  });
+}
+
+// Admin client for server-side operations (Storage, etc.)
+export function createAdminClient() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   });
 }

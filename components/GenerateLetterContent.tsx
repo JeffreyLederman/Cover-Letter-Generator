@@ -270,8 +270,8 @@ export function GenerateLetterContent({
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Sparkles className="h-12 w-12 text-gray-400 mb-4" />
                 <p className="text-gray-600">
-                  Click "Generate Cover Letter" to create your personalized
-                  letter
+                  Click &quot;Generate Cover Letter&quot; to create your
+                  personalized letter
                 </p>
               </CardContent>
             </Card>
