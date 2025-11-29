@@ -115,14 +115,14 @@ export async function POST(request: NextRequest) {
       conclusionParagraphs,
     });
 
-    // Generate PDF
+    // Generate PDF (use React.createElement instead of JSX in a .ts route)
     const pdfBuffer = await renderToBuffer(
-      <CoverLetterPDF
-        content={content}
-        templateId={templateId as TemplateId}
-        jobTitle={job.title}
-        company={job.company}
-      />
+      React.createElement(CoverLetterPDF, {
+        content,
+        templateId: templateId as TemplateId,
+        jobTitle: job.title,
+        company: job.company,
+      })
     );
 
     // Upload PDF to Supabase Storage
