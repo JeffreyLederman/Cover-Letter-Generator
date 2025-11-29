@@ -17,8 +17,6 @@ import { createClientComponentClient } from "@/lib/supabase";
 import { useToast } from "@/components/ui/use-toast";
 import { Sparkles, Download, RefreshCw, Loader2 } from "lucide-react";
 import { Job, Profile, Paragraph, TemplateId } from "@/types";
-import { CoverLetterPDF } from "@/components/CoverLetterPDF";
-import { PDFDownloadLink } from "@react-pdf/renderer";
 
 interface GenerateLetterContentProps {
   job: Job;
@@ -183,7 +181,7 @@ export function GenerateLetterContent({
           )}
         </div>
 
-        {/* Right Column - Preview */}
+        {/* Right Column - Preview / Download */}
         <div className="space-y-6">
           {content && (
             <>
@@ -191,7 +189,7 @@ export function GenerateLetterContent({
                 <CardHeader>
                   <CardTitle>Generated Letter</CardTitle>
                   <CardDescription>
-                    Review and edit the generated content
+                    Review and optionally edit the generated content
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -225,43 +223,7 @@ export function GenerateLetterContent({
                 </CardContent>
               </Card>
 
-              {/* PDF Preview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>PDF Preview</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg p-4 bg-white">
-                    {content && (
-                      <PDFDownloadLink
-                        document={
-                          <CoverLetterPDF
-                            content={content}
-                            templateId={template}
-                            jobTitle={job.title}
-                            company={job.company}
-                          />
-                        }
-                        fileName={`cover-letter-${job.company}-${Date.now()}.pdf`}
-                      >
-                        {({ loading: pdfLoading }) =>
-                          pdfLoading ? (
-                            <div className="flex items-center justify-center h-96">
-                              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-center h-96 border-2 border-dashed rounded-lg">
-                              <p className="text-gray-500">
-                                Click to download PDF preview
-                              </p>
-                            </div>
-                          )
-                        }
-                      </PDFDownloadLink>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Note: Live PDF preview disabled due to renderer issues. */}
             </>
           )}
 

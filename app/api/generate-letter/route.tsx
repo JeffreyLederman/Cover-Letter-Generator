@@ -5,13 +5,17 @@ import {
 } from "@/lib/supabase-server";
 import { generateCoverLetter } from "@/lib/openai";
 import { decryptApiKey } from "@/lib/utils";
-import { CoverLetterPDF } from "@/components/CoverLetterPDF";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { TemplateId } from "@/types";
-import React from "react";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const TEMPLATE_ID_MAP: Record<TemplateId, number> = {
+  classic: 1,
+  modern: 2,
+  minimal: 3,
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +37,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch job
     const { data: job, error: jobError } = await supabase
       .from("jobs")
       .select("*")
@@ -42,13 +45,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (jobError || !job) {
-      return NextResponse.json(
-        { error: "Job not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    // Fetch profile
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
@@ -56,10 +55,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profileError || !profile) {
-      return NextResponse.json(
-        { error: "Profile not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
     const apiKey = profile.openai_api_key
@@ -73,8 +69,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch paragraphs
-    const { data: paragraphs, error: paragraphsError } = await supabase
+    const { data: rawParagraphs, error: paragraphsError } = await supabase
       .from("paragraphs")
       .select("*")
       .eq("user_id", session.user.id);
@@ -86,27 +81,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const introParagraphs = (paragraphs || [])
+    const introParagraphs = (rawParagraphs || [])
       .filter((p) => p.category === "intro")
       .map((p) => p.content);
-    const experienceParagraphs = (paragraphs || [])
+    const experienceParagraphs = (rawParagraphs || [])
       .filter((p) => p.category === "experience")
       .map((p) => p.content);
-    const conclusionParagraphs = (paragraphs || [])
+    const conclusionParagraphs = (rawParagraphs || [])
       .filter((p) => p.category === "conclusion")
       .map((p) => p.content);
 
     if (introParagraphs.length === 0 || conclusionParagraphs.length === 0) {
       return NextResponse.json(
         {
-          error:
-            "Please add at least one intro and one conclusion paragraph",
+          error: "Please add at least one intro and one conclusion paragraph",
         },
         { status: 400 }
       );
     }
 
-    // Generate cover letter
     const content = await generateCoverLetter(apiKey, {
       jobDescription: job.description_text,
       resumeText: profile.resume_text || "",
@@ -115,20 +108,109 @@ export async function POST(request: NextRequest) {
       conclusionParagraphs,
     });
 
-    // Generate PDF (use React.createElement instead of JSX in a .ts route)
-    const pdfBuffer = await renderToBuffer(
-      React.createElement(CoverLetterPDF, {
-        content,
-        templateId: templateId as TemplateId,
-        jobTitle: job.title,
-        company: job.company,
-      })
-    );
+    const pdfDoc = await PDFDocument.create();
+    let page = pdfDoc.addPage();
+    let { width, height } = page.getSize();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    // Upload PDF to Supabase Storage
+    const margin = 50;
+    let y = height - margin;
+
+    const maxLineWidth = width - margin * 2;
+
+    const wrapText = (text: string, size: number, usedFont: typeof font) => {
+      const words = text.split(/\s+/);
+      const lines: string[] = [];
+      let currentLine = "";
+
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const testWidth = usedFont.widthOfTextAtSize(testLine, size);
+        if (testWidth <= maxLineWidth) {
+          currentLine = testLine;
+        } else {
+          if (currentLine) lines.push(currentLine);
+          currentLine = word;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      return lines;
+    };
+
+    const ensureSpace = (lineHeight: number) => {
+      if (y - lineHeight < margin) {
+        page = pdfDoc.addPage();
+        ({ width, height } = page.getSize());
+        y = height - margin;
+      }
+    };
+
+    const drawText = (
+      text: string,
+      options: { bold?: boolean; size?: number } = {}
+    ) => {
+      const size = options.size ?? 12;
+      const usedFont = options.bold ? boldFont : font;
+      const rawLines = text.split("\n");
+      const lines = rawLines.flatMap((line) =>
+        line.trim() ? wrapText(line, size, usedFont) : [""]
+      );
+      for (const line of lines) {
+        const lineHeight = size + 4;
+        ensureSpace(lineHeight);
+        if (line) {
+          page.drawText(line, {
+            x: margin,
+            y,
+            size,
+            font: usedFont,
+            color: rgb(0.1, 0.1, 0.1),
+          });
+        }
+        y -= lineHeight;
+      }
+      y -= 4;
+    };
+
+    drawText("Your Name", { bold: true, size: 18 });
+    drawText("your.email@example.com · (555) 123-4567 · Your City, State ZIP", {
+      size: 10,
+    });
+    y -= 10;
+
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    drawText(dateStr, { size: 10 });
+    drawText("Hiring Manager", { size: 11 });
+    drawText(job.company, { size: 11 });
+    y -= 10;
+
+    drawText("Dear Hiring Manager,", { size: 12 });
+
+    const bodyParagraphs = content
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    for (const p of bodyParagraphs) {
+      drawText(p, { size: 12 });
+      y -= 4;
+    }
+
+    y -= 10;
+    drawText("Sincerely,", { size: 12 });
+    drawText("Your Name", { size: 12 });
+
+    const pdfBytes = await pdfDoc.save();
+    const pdfBuffer = Buffer.from(pdfBytes);
+
     const adminClient = createAdminClient();
     const fileName = `cover-letter-${jobId}-${Date.now()}.pdf`;
-    const { data: uploadData, error: uploadError } = await adminClient.storage
+    const { error: uploadError } = await adminClient.storage
       .from("cover-letters")
       .upload(fileName, pdfBuffer, {
         contentType: "application/pdf",
@@ -136,19 +218,16 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error("Upload error:", uploadError);
       return NextResponse.json(
         { error: "Failed to upload PDF" },
         { status: 500 }
       );
     }
 
-    // Get public URL
     const {
       data: { publicUrl },
     } = adminClient.storage.from("cover-letters").getPublicUrl(fileName);
 
-    // Save cover letter record
     const { data: letter, error: letterError } = await supabase
       .from("cover_letters")
       .insert({
@@ -156,13 +235,12 @@ export async function POST(request: NextRequest) {
         user_id: session.user.id,
         content_markdown: content,
         pdf_url: publicUrl,
-        template_id: templateId,
+        template_id: TEMPLATE_ID_MAP[templateId as TemplateId],
       })
       .select()
       .single();
 
     if (letterError) {
-      console.error("Letter save error:", letterError);
       return NextResponse.json(
         { error: "Failed to save cover letter" },
         { status: 500 }
@@ -176,11 +254,9 @@ export async function POST(request: NextRequest) {
       pdfUrl: publicUrl,
     });
   } catch (error: any) {
-    console.error("Generate error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to generate cover letter" },
       { status: 500 }
     );
   }
 }
-

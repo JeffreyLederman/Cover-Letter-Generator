@@ -75,7 +75,7 @@ export function ParagraphManager({
       if (editing) {
         const { error } = await supabase
           .from("paragraphs")
-          .update({ content, updated_at: new Date().toISOString() })
+          .update({ content })
           .eq("id", editing.id);
 
         if (error) throw error;

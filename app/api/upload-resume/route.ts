@@ -54,13 +54,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Save to profile
-    const { error } = await supabase
-      .from("profiles")
-      .upsert({
-        id: session.user.id,
-        resume_text: text,
-        updated_at: new Date().toISOString(),
-      });
+    const { error } = await supabase.from("profiles").upsert({
+      id: session.user.id,
+      resume_text: text,
+    });
 
     if (error) {
       throw error;

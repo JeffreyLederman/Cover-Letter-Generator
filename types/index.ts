@@ -26,7 +26,7 @@ export interface CoverLetter {
   user_id: string;
   content_markdown: string;
   pdf_url?: string;
-  template_id: string;
+  template_id: number;
   created_at: string;
   updated_at: string;
   job?: Job;

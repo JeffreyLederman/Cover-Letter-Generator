@@ -39,13 +39,10 @@ export function ProfileContent({
     try {
       const encrypted = encryptApiKey(apiKey);
 
-      const { error } = await supabase
-        .from("profiles")
-        .upsert({
-          id: userId,
-          openai_api_key: encrypted,
-          updated_at: new Date().toISOString(),
-        });
+      const { error } = await supabase.from("profiles").upsert({
+        id: userId,
+        openai_api_key: encrypted,
+      });
 
       if (error) throw error;
 
@@ -54,9 +51,15 @@ export function ProfileContent({
         description: "API key saved",
       });
     } catch (error: any) {
+      console.error("Error saving API key:", error);
+      const description =
+        error?.message ||
+        error?.details ||
+        error?.hint ||
+        "Failed to save API key";
       toast({
         title: "Error",
-        description: error.message || "Failed to save API key",
+        description,
         variant: "destructive",
       });
     } finally {
